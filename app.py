@@ -3,18 +3,19 @@ from flask_cors import CORS
 
 app = Flask(__name__)
 
-# Allow CORS for frontend and other origins
-CORS(app, resources={r"/*": {"origins": "*"}})  # Allows all origins
+# Enable CORS for all routes
+CORS(app, supports_credentials=True)
 
-# Manually force CORS headers in every response
+# ✅ Manually add CORS headers in every response
 @app.after_request
 def add_cors_headers(response):
-    response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Origin"] = "*"  # Allow all domains
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"  # Allowed methods
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"  # Allow these headers
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     return response
 
-# Game routes
+# Register routes
 from routes.game_routes import game_blueprint
 from routes.round_routes import round_blueprint
 
