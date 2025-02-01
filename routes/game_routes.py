@@ -106,9 +106,6 @@ def get_game_results():
     if not game:
         return jsonify({"error": "Game not found"}), 404
 
-    if game["status"] != "finished":
-        return jsonify({"error": "Game is still in progress"}), 400
-
     return jsonify({
         "game_id": game_id,
         "total_rounds": game["total_rounds"],
