@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-import uuid
+import uuid, time
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
 
@@ -115,3 +115,26 @@ def get_game_results():
         "round_results": game["round_results"],
         "status": game["status"]
     }), 200
+
+@game_blueprint.route('/status/<game_id>', methods=['GET'])
+def get_game_status(game_id):
+    """ Long polling endpoint to wait for game status change """
+
+    timeout = 200  # Maximum wait time (in seconds)
+    poll_interval = 4  # How often we check the database (in seconds)
+    elapsed_time = 0
+
+    while elapsed_time < timeout:
+        game = get_game_data(game_id)
+
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+
+        if game["status"] == "started":
+            return jsonify({"status": "started"}), 200
+
+        time.sleep(poll_interval)
+        elapsed_time += poll_interval
+
+    # If the game has not started within timeout, return current status
+    return jsonify({"status": "waiting"}), 200
