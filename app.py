@@ -1,19 +1,20 @@
-from flask import Flask
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app, resources={
-    r"/*": {
-        "origins": [
-            "https://numbers-game-web-app.vercel.app",
-            "http://localhost:5500",   # Allow local testing
-            "http://127.0.0.1:5000",   # Allow Flask local server
-            "*",  # If you want to allow all origins (less secure)
-        ],
-        "methods": ["GET", "POST", "OPTIONS"],  # Allowed methods
-        "allow_headers": ["Content-Type", "Authorization"]
-    }
-})
+
+# Allow CORS for frontend and other origins
+CORS(app, resources={r"/*": {"origins": "*"}})  # Allows all origins
+
+# Manually force CORS headers in every response
+@app.after_request
+def add_cors_headers(response):
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
+# Game routes
 from routes.game_routes import game_blueprint
 from routes.round_routes import round_blueprint
 
