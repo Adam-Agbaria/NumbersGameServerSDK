@@ -94,3 +94,24 @@ def join_game():
     except Exception as e:
         return jsonify({"error": "An unexpected error occurred.", "details": str(e)}), 500
 
+# Fetch game results
+@game_blueprint.route('/results', methods=['GET'])
+def get_game_results():
+    game_id = request.args.get("game_id")
+    
+    if not game_id:
+        return jsonify({"error": "Missing 'game_id' parameter"}), 400
+
+    game = get_game_data(game_id)
+    if not game:
+        return jsonify({"error": "Game not found"}), 404
+
+    if game["status"] != "finished":
+        return jsonify({"error": "Game is still in progress"}), 400
+
+    return jsonify({
+        "game_id": game_id,
+        "total_rounds": game["total_rounds"],
+        "round_results": game["round_results"],
+        "status": game["status"]
+    }), 200
