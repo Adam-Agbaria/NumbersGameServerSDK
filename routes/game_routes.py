@@ -42,9 +42,6 @@ def create_game():
         return jsonify({"error": "An unexpected error occurred.", "details": str(e)}), 500
 
 
-from flask import Blueprint, request, jsonify
-import uuid
-from database import update_game_data, get_game_data
 
 game_blueprint = Blueprint('game', __name__)
 
