@@ -2,9 +2,11 @@ from flask import Blueprint, request, jsonify, current_app
 import uuid, time, threading
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
-
+import logging
 
 game_blueprint = Blueprint('game', __name__)
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 @game_blueprint.route('/create', methods=['POST'])
 def create_game():
@@ -160,62 +162,62 @@ def start_game():
 
     return jsonify({"message": "Game started"}), 200
 
-import time
-from flask import current_app
-from database import update_game_data, get_game_data
+
 
 def handle_rounds(game_id):
     """Handles round timing and forces end after 30 seconds"""
-    logger = current_app.logger  # ✅ Use Flask's logger
+    try:
+        while True:
+            game = get_game_data(game_id)
 
-    while True:
-        game = get_game_data(game_id)
+            if not game or game["status"] == "finished":
+                logger.info(f"🏁 Game {game_id} has already finished. Exiting round handler.")
+                break  # Stop if game is over
 
-        if not game or game["status"] == "finished":
-            logger.info(f"🏁 Game {game_id} has already finished. Exiting round handler.")
-            break  # Stop if game is over
+            current_round = game["current_round"]
+            total_rounds = game["total_rounds"]
 
-        current_round = game["current_round"]
-        total_rounds = game["total_rounds"]
+            logger.info(f"🔹 Round {current_round} started for game {game_id}")
 
-        logger.info(f"🔹 Round {current_round} started for game {game_id}")
+            # ✅ Step 1: Give 20 seconds for normal submissions
+            time.sleep(20)
 
-        # ✅ Step 1: Give 20 seconds for normal submissions
-        time.sleep(20)
+            # ✅ Step 2: Extra 10 seconds grace period
+            time.sleep(10)
 
-        # ✅ Step 2: Extra 10 seconds grace period
-        time.sleep(10)
+            # ✅ Step 3: Assign default number (10) if player didn’t pick
+            game = get_game_data(game_id)  # Refresh game data
+            for player_id, player_data in game["players"].items():
+                if player_data.get("number") is None:  # If no number was picked
+                    logger.warning(f"⚠️ Player {player_id} didn't pick. Assigning default 10.")
+                    game["players"][player_id]["number"] = 10  # Default to 10
 
-        # ✅ Step 3: Assign default number (10) if player didn’t pick
-        game = get_game_data(game_id)  # Refresh game data
-        for player_id, player_data in game["players"].items():
-            if player_data.get("number") is None:  # If no number was picked
-                logger.warning(f"⚠️ Player {player_id} didn't pick. Assigning default 10.")
-                game["players"][player_id]["number"] = 10  # Default to 10
+            update_game_data(game_id, "players", game["players"])  # ✅ Save default numbers
 
-        update_game_data(game_id, "players", game["players"])  # ✅ Save default numbers
+            # ✅ Step 4: **FORCE update to "round_finished"**
+            logger.info(f"✔️ Forcing game status to 'round_finished' for game {game_id}")
+            update_game_data(game_id, "status", "round_finished")
 
-        # ✅ Step 4: **FORCE update to "round_finished"**
-        logger.info(f"✔️ Forcing game status to 'round_finished' for game {game_id}")
-        update_game_data(game_id, "status", "round_finished")
+            # ✅ Step 5: Verify if the update was successful
+            game_check = get_game_data(game_id)  # Check database again
+            if game_check["status"] == "round_finished":
+                logger.info(f"✅ Round {current_round} successfully marked as 'round_finished'")
+            else:
+                logger.error(f"❌ Failed to update status to 'round_finished'. Current status: {game_check['status']}")
 
-        # ✅ Step 5: Verify if the update was successful
-        game_check = get_game_data(game_id)  # Check database again
-        if game_check["status"] == "round_finished":
-            logger.info(f"✅ Round {current_round} successfully marked as 'round_finished'")
-        else:
-            logger.error(f"❌ Failed to update status to 'round_finished'. Current status: {game_check['status']}")
+            # ✅ Step 6: Display results for 15 seconds
+            time.sleep(15)
 
-        # ✅ Step 6: Display results for 15 seconds
-        time.sleep(15)
+            # ✅ Step 7: Move to next round or finish the game
+            if current_round >= total_rounds:
+                update_game_data(game_id, "status", "finished")
+                logger.info(f"🏁 Game {game_id} has ended!")
+                break
+            else:
+                game["current_round"] += 1
+                update_game_data(game_id, "current_round", game["current_round"])
+                update_game_data(game_id, "status", "started")
+                logger.info(f"🚀 Starting round {game['current_round']} for game {game_id}")
 
-        # ✅ Step 7: Move to next round or finish the game
-        if current_round >= total_rounds:
-            update_game_data(game_id, "status", "finished")
-            logger.info(f"🏁 Game {game_id} has ended!")
-            break
-        else:
-            game["current_round"] += 1
-            update_game_data(game_id, "current_round", game["current_round"])
-            update_game_data(game_id, "status", "started")
-            logger.info(f"🚀 Starting round {game['current_round']} for game {game_id}")
+    except Exception as e:
+        logger.error(f"❌ Exception in handle_rounds: {e}", exc_info=True)
