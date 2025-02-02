@@ -7,5 +7,3 @@ pyqrcode
 pypng
 logging
 uuid
-time 
-threading
