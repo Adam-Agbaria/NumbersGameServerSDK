@@ -181,18 +181,27 @@ def handle_rounds(game_id):
 
             # ✅ Step 1: Give 20 seconds for normal submissions
             time.sleep(20)
+            logger.info(f"⏳ 20 seconds passed. Checking for submissions...")
 
             # ✅ Step 2: Extra 10 seconds grace period
             time.sleep(10)
+            logger.info(f"⏳ Extra 10 seconds passed. Assigning default values if needed...")
 
             # ✅ Step 3: Assign default number (10) if player didn’t pick
             game = get_game_data(game_id)  # Refresh game data
+            if not game or "players" not in game:
+                raise Exception(f"❌ ERROR: Game data is missing 'players' field. Game: {game}")
+
             for player_id, player_data in game["players"].items():
-                if player_data.get("number") is None:  # If no number was picked
+                if "number" not in player_data:
+                    raise Exception(f"❌ ERROR: Player {player_id} is missing 'number' field. Player data: {player_data}")
+
+                if player_data["number"] is None:  # If no number was picked
                     logger.warning(f"⚠️ Player {player_id} didn't pick. Assigning default 10.")
                     game["players"][player_id]["number"] = 10  # Default to 10
 
             update_game_data(game_id, "players", game["players"])  # ✅ Save default numbers
+            logger.info(f"✔️ Player numbers updated successfully.")
 
             # ✅ Step 4: **FORCE update to "round_finished"**
             logger.info(f"✔️ Forcing game status to 'round_finished' for game {game_id}")
@@ -203,7 +212,7 @@ def handle_rounds(game_id):
             if game_check["status"] == "round_finished":
                 logger.info(f"✅ Round {current_round} successfully marked as 'round_finished'")
             else:
-                logger.error(f"❌ Failed to update status to 'round_finished'. Current status: {game_check['status']}")
+                raise Exception(f"❌ ERROR: Failed to update status to 'round_finished'. Current status: {game_check['status']}")
 
             # ✅ Step 6: Display results for 15 seconds
             time.sleep(15)
@@ -220,4 +229,4 @@ def handle_rounds(game_id):
                 logger.info(f"🚀 Starting round {game['current_round']} for game {game_id}")
 
     except Exception as e:
-        logger.error(f"❌ Exception in handle_rounds: {e}", exc_info=True)
+        logger.error(f"❌ EXCEPTION in handle_rounds(): {e}", exc_info=True)
