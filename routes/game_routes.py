@@ -171,7 +171,7 @@ def end_round():
 
     update_game_data(game_id, "players", game["players"])
 
-    # Calculate the winner
+    # Calculate th winner
     numbers = [p["number"] for p in game["players"].values()]
     avg_number = sum(numbers) / len(numbers) * 0.8
 
