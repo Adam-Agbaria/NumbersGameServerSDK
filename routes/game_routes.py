@@ -46,7 +46,6 @@ def create_game():
 
 
 
-game_blueprint = Blueprint('game', __name__)
 
 @game_blueprint.route('/join', methods=['POST'])
 def join_game():
