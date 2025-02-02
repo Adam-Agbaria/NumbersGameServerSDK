@@ -5,5 +5,4 @@ flask-restful
 requests
 pyqrcode
 pypng
-logging
 uuid
