@@ -171,11 +171,12 @@ def end_round():
 
     update_game_data(game_id, "players", game["players"])
 
-    # Calculate th winner
-    numbers = [p["number"] for p in game["players"].values()]
-    avg_number = sum(numbers) / len(numbers) * 0.8
+    # ✅ FIX: Convert all numbers to integers before calculations
+    numbers = [int(p["number"]) for p in game["players"].values()]
 
-    winner = min(game["players"], key=lambda pid: abs(game["players"][pid]["number"] - avg_number))
+    # Calculate the average and winner
+    avg_number = sum(numbers) / len(numbers) * 0.8
+    winner = min(game["players"], key=lambda pid: abs(int(game["players"][pid]["number"]) - avg_number))
 
     game["round_results"][f"Round {current_round}"] = {
         "winner": winner,
