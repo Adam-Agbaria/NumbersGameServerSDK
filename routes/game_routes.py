@@ -112,10 +112,9 @@ def get_game_results():
 
 @game_blueprint.route('/status/<game_id>', methods=['GET'])
 def get_game_status(game_id):
-    """ Long polling endpoint to wait for game status change """
-
-    timeout = 200  # Maximum wait time (in seconds)
-    poll_interval = 4  # How often we check the database (in seconds)
+    """Check game status (long polling support)"""
+    timeout = 200
+    poll_interval = 4
     elapsed_time = 0
 
     while elapsed_time < timeout:
@@ -124,14 +123,14 @@ def get_game_status(game_id):
         if not game:
             return jsonify({"error": "Game not found"}), 404
 
-        if game["status"] == "started":
-            return jsonify({"status": "started"}), 200
+        if game["status"] in ["started", "round_finished", "finished"]:
+            return jsonify({"status": game["status"]}), 200
 
         time.sleep(poll_interval)
         elapsed_time += poll_interval
 
-    # If the game has not started within timeout, return current status
     return jsonify({"status": "waiting"}), 200
+
 
 # Start the game (Change status to "started" and start round timer)
 @game_blueprint.route('/start', methods=['POST'])
