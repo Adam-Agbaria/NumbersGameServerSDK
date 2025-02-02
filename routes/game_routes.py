@@ -165,13 +165,14 @@ from flask import current_app
 from database import update_game_data, get_game_data
 
 def handle_rounds(game_id):
-    """Handles round timing and ensures the round ends after 30 seconds max"""
+    """Handles round timing and forces end after 30 seconds"""
     logger = current_app.logger  # ✅ Use Flask's logger
 
     while True:
         game = get_game_data(game_id)
 
         if not game or game["status"] == "finished":
+            logger.info(f"🏁 Game {game_id} has already finished. Exiting round handler.")
             break  # Stop if game is over
 
         current_round = game["current_round"]
@@ -179,38 +180,42 @@ def handle_rounds(game_id):
 
         logger.info(f"🔹 Round {current_round} started for game {game_id}")
 
-        # ✅ Start the round and allow 20 seconds for submission
+        # ✅ Step 1: Give 20 seconds for normal submissions
         time.sleep(20)
 
-        # ✅ Extra 10 seconds for late submissions
+        # ✅ Step 2: Extra 10 seconds grace period
         time.sleep(10)
 
-        # ✅ Assign default number (10) if a player hasn’t picked
+        # ✅ Step 3: Assign default number (10) if player didn’t pick
         game = get_game_data(game_id)  # Refresh game data
         for player_id, player_data in game["players"].items():
-            if player_data["number"] is None:  # If no number was picked
+            if player_data.get("number") is None:  # If no number was picked
                 logger.warning(f"⚠️ Player {player_id} didn't pick. Assigning default 10.")
                 game["players"][player_id]["number"] = 10  # Default to 10
 
         update_game_data(game_id, "players", game["players"])  # ✅ Save default numbers
 
-        # ✅ End the round
-        game["status"] = "round_finished"
+        # ✅ Step 4: **FORCE update to "round_finished"**
+        logger.info(f"✔️ Forcing game status to 'round_finished' for game {game_id}")
         update_game_data(game_id, "status", "round_finished")
-        logger.info(f"✔️ Round {current_round} finished! Showing results...")
 
-        # ✅ Show results for 15 seconds
+        # ✅ Step 5: Verify if the update was successful
+        game_check = get_game_data(game_id)  # Check database again
+        if game_check["status"] == "round_finished":
+            logger.info(f"✅ Round {current_round} successfully marked as 'round_finished'")
+        else:
+            logger.error(f"❌ Failed to update status to 'round_finished'. Current status: {game_check['status']}")
+
+        # ✅ Step 6: Display results for 15 seconds
         time.sleep(15)
 
-        # ✅ Move to next round or finish the game
+        # ✅ Step 7: Move to next round or finish the game
         if current_round >= total_rounds:
-            game["status"] = "finished"
             update_game_data(game_id, "status", "finished")
             logger.info(f"🏁 Game {game_id} has ended!")
             break
         else:
             game["current_round"] += 1
-            game["status"] = "started"
             update_game_data(game_id, "current_round", game["current_round"])
             update_game_data(game_id, "status", "started")
             logger.info(f"🚀 Starting round {game['current_round']} for game {game_id}")
