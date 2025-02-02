@@ -149,4 +149,52 @@ def get_game_status(game_id):
 
     return jsonify({"status": "waiting"}), 200
 
+@game_blueprint.route('/end_round', methods=['POST'])
+def end_round():
+    """Manually end the current round and calculate the winner."""
+    data = request.get_json()
+    game_id = data.get("game_id")
 
+    game = get_game_data(game_id)
+    if not game:
+        return jsonify({"error": "Game not found"}), 404
+
+    if game["status"] != "started":
+        return jsonify({"error": "Game is not in progress"}), 400
+
+    current_round = game["current_round"]
+
+    # Assign default numbers (10) for players who didn't submit
+    for player_id, player in game["players"].items():
+        if player["number"] is None:
+            game["players"][player_id]["number"] = 10
+
+    update_game_data(game_id, "players", game["players"])
+
+    # Calculate the winner
+    numbers = [p["number"] for p in game["players"].values()]
+    avg_number = sum(numbers) / len(numbers) * 0.8
+
+    winner = min(game["players"], key=lambda pid: abs(game["players"][pid]["number"] - avg_number))
+
+    game["round_results"][f"Round {current_round}"] = {
+        "winner": winner,
+        "winning_number": avg_number,
+        "chosen_number": game["players"][winner]["number"]
+    }
+
+    update_game_data(game_id, "round_results", game["round_results"])
+
+    # Move to next round or finish the game
+    if current_round >= game["total_rounds"]:
+        game["status"] = "finished"
+        update_game_data(game_id, "status", "finished")
+        return jsonify({"message": "Game finished!", "winner": winner}), 200
+    else:
+        game["current_round"] += 1
+        update_game_data(game_id, "current_round", game["current_round"])
+        update_game_data(game_id, "status", "started")
+        return jsonify({
+            "message": f"Round {game['current_round']} started",
+            "previous_winner": winner
+        }), 200
