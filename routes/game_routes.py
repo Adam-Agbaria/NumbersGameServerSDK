@@ -1,7 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 import uuid, time, threading
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
+
 
 game_blueprint = Blueprint('game', __name__)
 
@@ -161,6 +162,8 @@ def start_game():
 
 def handle_rounds(game_id):
     """Handles round timing and checks if all players have submitted before ending the round"""
+    logger = current_app.logger  # ✅ Use Flask's logger
+
     while True:
         game = get_game_data(game_id)
 
@@ -170,30 +173,34 @@ def handle_rounds(game_id):
         current_round = game["current_round"]
         total_rounds = game["total_rounds"]
 
-        print(f"🔹 Round {current_round} started for game {game_id}")
+        logger.info(f"🔹 Round {current_round} started for game {game_id}")
 
         # ✅ Start the round (Give players X seconds to submit)
         time.sleep(20)
 
-        # ✅ Force refresh and log the player data
-        for attempt in range(3):  # Try fetching fresh data up to 3 times
+        # ✅ Force refresh and log player data multiple times
+        for attempt in range(3):  # Try refreshing data 3 times before proceeding
             game = get_game_data(game_id)
-            print(f"🔄 Attempt {attempt + 1}: Retrieved game data: {game['players']}")
+            logger.info(f"🔄 Attempt {attempt + 1}: Retrieved player data: {game['players']}")
 
-            if all(p["number"] is not None for p in game["players"].values()):
-                print(f"✅ All players submitted numbers, proceeding to finish round.")
-                break  
-            print(f"⏳ Waiting 5 seconds before retrying to check player submissions...")
+            all_submitted = all(p["number"] is not None for p in game["players"].values())
+            if all_submitted:
+                logger.info(f"✅ All players submitted their numbers! Proceeding to finish round.")
+                break  # Exit early if all players have submitted
+
+            logger.info(f"⏳ Not all players submitted, waiting 5 seconds before retrying...")
             time.sleep(5)
 
-        # ✅ If still not all players submitted, enforce timeout and auto-end the round
-        if not all(p["number"] is not None for p in game["players"].values()):
-            print(f"⚠️ Not all players submitted. Enforcing timeout.")
-        
-        # ✅ Mark round as finished
+        # ✅ If all players have submitted, mark round as finished
+        if all_submitted:
+            logger.info(f"✔️ All numbers submitted. Ending round...")
+        else:
+            logger.warning(f"⚠️ Timeout reached. Ending round anyway.")
+
+        # ✅ Change status to "round_finished"
         game["status"] = "round_finished"
         update_game_data(game_id, "status", "round_finished")
-        print(f"✔️ Round {current_round} finished! Showing results...")
+        logger.info(f"✔️ Round {current_round} finished! Showing results...")
 
         # ✅ Display round results for 15 seconds
         time.sleep(15)
@@ -202,11 +209,11 @@ def handle_rounds(game_id):
         if current_round >= total_rounds:
             game["status"] = "finished"
             update_game_data(game_id, "status", "finished")
-            print(f"🏁 Game {game_id} has ended!")
+            logger.info(f"🏁 Game {game_id} has ended!")
             break
         else:
             game["current_round"] += 1
             game["status"] = "started"
             update_game_data(game_id, "current_round", game["current_round"])
             update_game_data(game_id, "status", "started")
-            print(f"🚀 Starting round {game['current_round']} for game {game_id}")
+            logger.info(f"🚀 Starting round {game['current_round']} for game {game_id}")
