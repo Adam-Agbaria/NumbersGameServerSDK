@@ -175,14 +175,21 @@ def handle_rounds(game_id):
         # ✅ Start the round (Give players X seconds to submit)
         time.sleep(20)
 
-        # ✅ Check if all players have submitted their numbers
-        for wait_time in [5, 10, 10]:  # Total max wait time: 25 seconds
+        # ✅ Force refresh and log the player data
+        for attempt in range(3):  # Try fetching fresh data up to 3 times
             game = get_game_data(game_id)
-            if all(p["number"] is not None for p in game["players"].values()):
-                break  # All players have submitted, proceed
-            print(f"⏳ Waiting {wait_time} seconds for remaining players...")
-            time.sleep(wait_time)
+            print(f"🔄 Attempt {attempt + 1}: Retrieved game data: {game['players']}")
 
+            if all(p["number"] is not None for p in game["players"].values()):
+                print(f"✅ All players submitted numbers, proceeding to finish round.")
+                break  
+            print(f"⏳ Waiting 5 seconds before retrying to check player submissions...")
+            time.sleep(5)
+
+        # ✅ If still not all players submitted, enforce timeout and auto-end the round
+        if not all(p["number"] is not None for p in game["players"].values()):
+            print(f"⚠️ Not all players submitted. Enforcing timeout.")
+        
         # ✅ Mark round as finished
         game["status"] = "round_finished"
         update_game_data(game_id, "status", "round_finished")
