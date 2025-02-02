@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-import uuid, time
+import uuid, time, threading
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
 
@@ -132,3 +132,67 @@ def get_game_status(game_id):
 
     # If the game has not started within timeout, return current status
     return jsonify({"status": "waiting"}), 200
+
+# Start the game (Change status to "started" and start round timer)
+@game_blueprint.route('/start', methods=['POST'])
+def start_game():
+    """Start the game and handle round progression"""
+    data = request.get_json()
+    game_id = data.get("game_id")
+
+    if not game_id:
+        return jsonify({"error": "Missing game ID"}), 400
+
+    game = get_game_data(game_id)
+    if not game:
+        return jsonify({"error": "Game not found"}), 404
+
+    if game["status"] != "waiting":
+        return jsonify({"error": "Game has already started or finished"}), 400
+
+    # Change game status to "started"
+    game["status"] = "started"
+    game["current_round"] = 1
+    update_game_data(game_id, "status", "started")
+    update_game_data(game_id, "current_round", 1)
+
+    # Start round processing in a separate thread
+    threading.Thread(target=handle_rounds, args=(game_id,)).start()
+
+    return jsonify({"message": "Game started"}), 200
+
+
+def handle_rounds(game_id):
+    """Manages round timing, changing status from started -> round_finished -> next round"""
+    while True:
+        game = get_game_data(game_id)
+
+        if not game or game["status"] == "finished":
+            break  # Stop if game doesn't exist or has ended
+
+        current_round = game.get("current_round", 1)
+        total_rounds = game.get("total_rounds", 5)
+
+        # ✅ Set round timer (20 seconds)
+        print(f"Round {current_round} started")
+        time.sleep(20)
+
+        # ✅ Mark round as finished
+        game["status"] = "round_finished"
+        update_game_data(game_id, "status", "round_finished")
+        print(f"Round {current_round} finished")
+
+        time.sleep(5)  # Wait before starting next round
+
+        # ✅ Move to next round or finish the game
+        if current_round >= total_rounds:
+            game["status"] = "finished"
+            update_game_data(game_id, "status", "finished")
+            print(f"Game {game_id} finished")
+            break
+        else:
+            game["current_round"] += 1
+            game["status"] = "started"
+            update_game_data(game_id, "current_round", game["current_round"])
+            update_game_data(game_id, "status", "started")
+            print(f"Starting round {game['current_round']}")
