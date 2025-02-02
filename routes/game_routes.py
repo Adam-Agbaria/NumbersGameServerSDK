@@ -194,7 +194,7 @@ def end_round():
     else:
         game["current_round"] += 1
         update_game_data(game_id, "current_round", game["current_round"])
-        update_game_data(game_id, "status", "started")
+        update_game_data(game_id, "status", "round_ended")
         return jsonify({
             "message": f"Round {game['current_round']} started",
             "previous_winner": winner
