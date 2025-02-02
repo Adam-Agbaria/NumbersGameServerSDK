@@ -160,8 +160,12 @@ def start_game():
 
     return jsonify({"message": "Game started"}), 200
 
+import time
+from flask import current_app
+from database import update_game_data, get_game_data
+
 def handle_rounds(game_id):
-    """Handles round timing and checks if all players have submitted before ending the round"""
+    """Handles round timing and ensures the round ends after 30 seconds max"""
     logger = current_app.logger  # ✅ Use Flask's logger
 
     while True:
@@ -175,34 +179,27 @@ def handle_rounds(game_id):
 
         logger.info(f"🔹 Round {current_round} started for game {game_id}")
 
-        # ✅ Start the round (Give players X seconds to submit)
+        # ✅ Start the round and allow 20 seconds for submission
         time.sleep(20)
 
-        # ✅ Force refresh and log player data multiple times
-        for attempt in range(3):  # Try refreshing data 3 times before proceeding
-            game = get_game_data(game_id)
-            logger.info(f"🔄 Attempt {attempt + 1}: Retrieved player data: {game['players']}")
+        # ✅ Extra 10 seconds for late submissions
+        time.sleep(10)
 
-            all_submitted = all(p["number"] is not None for p in game["players"].values())
-            if all_submitted:
-                logger.info(f"✅ All players submitted their numbers! Proceeding to finish round.")
-                break  # Exit early if all players have submitted
+        # ✅ Assign default number (10) if a player hasn’t picked
+        game = get_game_data(game_id)  # Refresh game data
+        for player_id, player_data in game["players"].items():
+            if player_data["number"] is None:  # If no number was picked
+                logger.warning(f"⚠️ Player {player_id} didn't pick. Assigning default 10.")
+                game["players"][player_id]["number"] = 10  # Default to 10
 
-            logger.info(f"⏳ Not all players submitted, waiting 5 seconds before retrying...")
-            time.sleep(5)
+        update_game_data(game_id, "players", game["players"])  # ✅ Save default numbers
 
-        # ✅ If all players have submitted, mark round as finished
-        if all_submitted:
-            logger.info(f"✔️ All numbers submitted. Ending round...")
-        else:
-            logger.warning(f"⚠️ Timeout reached. Ending round anyway.")
-
-        # ✅ Change status to "round_finished"
+        # ✅ End the round
         game["status"] = "round_finished"
         update_game_data(game_id, "status", "round_finished")
         logger.info(f"✔️ Round {current_round} finished! Showing results...")
 
-        # ✅ Display round results for 15 seconds
+        # ✅ Show results for 15 seconds
         time.sleep(15)
 
         # ✅ Move to next round or finish the game
