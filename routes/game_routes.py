@@ -3,7 +3,7 @@ import uuid, time, threading
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
 import logging
-import signal
+import asyncio
 
 game_blueprint = Blueprint('game', __name__)
 logging.basicConfig(level=logging.INFO)
@@ -128,33 +128,36 @@ def options_handler(game_id):
     """Handle preflight CORS requests"""
     return jsonify({"message": "OK"}), 200
 
-@game_blueprint.route('/status/<game_id>', methods=['GET'])
-def get_game_status(game_id):
-    """Check game status with improved timeout handling"""
-    timeout = 9  # Stay within Vercel's limit
-    poll_interval = 2  # Reduce polling interval
+async def async_get_game_status(game_id, timeout=9, poll_interval=2):
+    """Asynchronous function to check game status within Vercel's timeout"""
     elapsed_time = 0
 
+    while elapsed_time < timeout:
+        game = get_game_data(game_id)  # Fetch game data
+
+        if not game:
+            return {"error": "Game not found"}, 404
+
+        if game["status"] in ["started", "round_finished", "finished"]:
+            return {"status": game["status"]}, 200
+
+        await asyncio.sleep(poll_interval)  # Non-blocking wait
+        elapsed_time += poll_interval
+
+    return {"status": "waiting"}, 200
+
+@game_blueprint.route('/status/<game_id>', methods=['GET'])
+async def get_game_status(game_id):
+    """Optimized non-blocking endpoint for Vercel"""
     try:
-        while elapsed_time < timeout:
-            game = get_game_data(game_id)  # Fetch game data
-
-            if not game:
-                return jsonify({"error": "Game not found"}), 404
-
-            if game["status"] in ["started", "round_finished", "finished"]:
-                return jsonify({"status": game["status"]}), 200
-
-            time.sleep(poll_interval)
-            elapsed_time += poll_interval
-
-        return jsonify({"status": "waiting"}), 200
+        response, status_code = await async_get_game_status(game_id)
+        return jsonify(response), status_code
 
     except Exception as e:
         print(f"❌ Server Error: {str(e)}")  # Log errors for debugging
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
     
-    
+
 @game_blueprint.route('/end_round', methods=['POST'])
 def end_round():
     """Manually end the current round and calculate the winner."""
