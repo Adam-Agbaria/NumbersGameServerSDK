@@ -78,7 +78,7 @@ def start_game():
 
 @game_blueprint.route('/next_round', methods=['POST'])
 def next_round():
-    """Manually trigger the next round (or API can call this every 30 seconds)."""
+    """Moves the game to the next round or marks it as finished."""
     data = request.get_json()
     game_id = data.get("game_id")
 
@@ -86,28 +86,25 @@ def next_round():
     if not game:
         return jsonify({"error": "Game not found"}), 404
 
-    if game["status"] != "started":
-        return jsonify({"error": "Game is not running"}), 400
-
     current_round = game["current_round"]
     total_rounds = game["total_rounds"]
 
-    # Assign default numbers (10) for missing submissions
-    for player_id, player in game["players"].items():
-        if player["number"] is None:
-            game["players"][player_id]["number"] = 10
-
-    update_game_data(game_id, "players", game["players"])
-
-    # Move to the next round or finish the game
     if current_round >= total_rounds:
+        # ✅ Game is finished
         game["status"] = "finished"
         update_game_data(game_id, "status", "finished")
-        return jsonify({"message": "Game finished!"}), 200
+        return jsonify({"message": "Game finished"}), 200
     else:
+        # ✅ Move to next round
         game["current_round"] += 1
+        game["status"] = "started"
         update_game_data(game_id, "current_round", game["current_round"])
-        return jsonify({"message": f"Round {game['current_round']} started"}), 200
+        update_game_data(game_id, "status", "started")
+        return jsonify({
+            "message": f"Round {game['current_round']} started",
+            "current_round": game["current_round"]
+        }), 200
+
 
 # Fetch game results
 @game_blueprint.route('/results', methods=['GET'])
