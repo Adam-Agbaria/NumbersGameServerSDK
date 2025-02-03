@@ -4,6 +4,7 @@ from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
 import logging
 import asyncio
+import traceback
 
 game_blueprint = Blueprint('game', __name__)
 logging.basicConfig(level=logging.INFO)
@@ -154,7 +155,8 @@ async def get_game_status(game_id):
         return jsonify(response), status_code
 
     except Exception as e:
-        print(f"❌ Server Error: {str(e)}")  # Log errors for debugging
+        error_trace = traceback.format_exc()  # Capture full traceback
+        print(f"❌ Server Error:\n{error_trace}")  # Log full details
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
     
 
