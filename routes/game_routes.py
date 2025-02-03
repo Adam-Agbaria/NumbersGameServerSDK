@@ -94,7 +94,7 @@ def next_round():
         return jsonify({"message": "Game finished"}), 200
     else:
         # ✅ Move to next round
-        game["current_round"] += 1
+        #game["current_round"] += 1
         game["status"] = "started"
         update_game_data(game_id, "current_round", game["current_round"])
         update_game_data(game_id, "status", "started")
