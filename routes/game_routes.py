@@ -9,11 +9,7 @@ game_blueprint = Blueprint('game', __name__)
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from flask import Blueprint, request, jsonify
-import uuid
-import time
-from database import create_game_in_db, update_game_data, get_game_data
-from utils.qr_generator import generate_qr_code
+
 
 game_blueprint = Blueprint('game', __name__)
 
@@ -127,10 +123,6 @@ def get_game_results():
     }), 200
 
 
-# Function to timeout long-running requests
-def timeout_handler(signum, frame):
-    raise TimeoutError("Request timed out")
-
 @game_blueprint.route('/status/<game_id>', methods=['OPTIONS'])
 def options_handler(game_id):
     """Handle preflight CORS requests"""
@@ -138,15 +130,12 @@ def options_handler(game_id):
 
 @game_blueprint.route('/status/<game_id>', methods=['GET'])
 def get_game_status(game_id):
-    """Check game status (optimized with timeouts)"""
-    signal.signal(signal.SIGALRM, timeout_handler)  # Set timeout handler
-    signal.alarm(9)  # Ensure the function doesn't exceed 9 seconds
+    """Check game status with improved timeout handling"""
+    timeout = 9  # Stay within Vercel's limit
+    poll_interval = 2  # Reduce polling interval
+    elapsed_time = 0
 
     try:
-        timeout = 9  # Ensure function exits before Vercel's limit
-        poll_interval = 2  # Reduce polling interval for faster response
-        elapsed_time = 0
-
         while elapsed_time < timeout:
             game = get_game_data(game_id)  # Fetch game data
 
@@ -159,14 +148,13 @@ def get_game_status(game_id):
             time.sleep(poll_interval)
             elapsed_time += poll_interval
 
-        return jsonify({"status": "waiting"}), 200  # Default return if still waiting
+        return jsonify({"status": "waiting"}), 200
 
-    except TimeoutError:
-        return jsonify({"error": "Request timed out"}), 504
-
-    finally:
-        signal.alarm(0)  # Disable the alarm after execution
-
+    except Exception as e:
+        print(f"❌ Server Error: {str(e)}")  # Log errors for debugging
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+    
+    
 @game_blueprint.route('/end_round', methods=['POST'])
 def end_round():
     """Manually end the current round and calculate the winner."""
