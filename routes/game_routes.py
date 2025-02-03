@@ -3,6 +3,7 @@ import uuid, time, threading
 from database import create_game_in_db, update_game_data, get_game_data
 from utils.qr_generator import generate_qr_code
 import logging
+import signal
 
 game_blueprint = Blueprint('game', __name__)
 logging.basicConfig(level=logging.INFO)
@@ -125,26 +126,46 @@ def get_game_results():
         "status": game["status"]
     }), 200
 
+
+# Function to timeout long-running requests
+def timeout_handler(signum, frame):
+    raise TimeoutError("Request timed out")
+
+@game_blueprint.route('/status/<game_id>', methods=['OPTIONS'])
+def options_handler(game_id):
+    """Handle preflight CORS requests"""
+    return jsonify({"message": "OK"}), 200
+
 @game_blueprint.route('/status/<game_id>', methods=['GET'])
 def get_game_status(game_id):
-    """Check game status (long polling support)"""
-    timeout = 200
-    poll_interval = 4
-    elapsed_time = 0
+    """Check game status (optimized with timeouts)"""
+    signal.signal(signal.SIGALRM, timeout_handler)  # Set timeout handler
+    signal.alarm(9)  # Ensure the function doesn't exceed 9 seconds
 
-    while elapsed_time < timeout:
-        game = get_game_data(game_id)
+    try:
+        timeout = 9  # Ensure function exits before Vercel's limit
+        poll_interval = 2  # Reduce polling interval for faster response
+        elapsed_time = 0
 
-        if not game:
-            return jsonify({"error": "Game not found"}), 404
+        while elapsed_time < timeout:
+            game = get_game_data(game_id)  # Fetch game data
 
-        if game["status"] in ["started", "round_finished", "finished"]:
-            return jsonify({"status": game["status"]}), 200
+            if not game:
+                return jsonify({"error": "Game not found"}), 404
 
-        time.sleep(poll_interval)
-        elapsed_time += poll_interval
+            if game["status"] in ["started", "round_finished", "finished"]:
+                return jsonify({"status": game["status"]}), 200
 
-    return jsonify({"status": "waiting"}), 200
+            time.sleep(poll_interval)
+            elapsed_time += poll_interval
+
+        return jsonify({"status": "waiting"}), 200  # Default return if still waiting
+
+    except TimeoutError:
+        return jsonify({"error": "Request timed out"}), 504
+
+    finally:
+        signal.alarm(0)  # Disable the alarm after execution
 
 @game_blueprint.route('/end_round', methods=['POST'])
 def end_round():
