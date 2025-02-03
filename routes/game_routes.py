@@ -148,17 +148,19 @@ async def async_get_game_status(game_id, timeout=9, poll_interval=2):
     return {"status": "waiting"}, 200
 
 @game_blueprint.route('/status/<game_id>', methods=['GET'])
-async def get_game_status(game_id):
-    """Optimized non-blocking endpoint for Vercel"""
+def get_game_status(game_id):
+    """Fast game status check (Vercel-safe, no polling)"""
     try:
-        response, status_code = await async_get_game_status(game_id)
-        return jsonify(response), status_code
+        game = get_game_data(game_id)  # Fetch game data fast
+
+        if not game:
+            return jsonify({"error": "Game not found"}), 404
+
+        return jsonify({"status": game["status"]}), 200  # ✅ No polling, just return status
 
     except Exception as e:
-        error_trace = traceback.format_exc()  # Capture full traceback
-        print(f"❌ Server Error:\n{error_trace}")  # Log full details
+        print(f"❌ Server Error: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
-    
 
 @game_blueprint.route('/end_round', methods=['POST'])
 def end_round():
