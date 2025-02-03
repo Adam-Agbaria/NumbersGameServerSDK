@@ -116,12 +116,17 @@ def get_game_results():
     if not game:
         return jsonify({"error": "Game not found"}), 404
 
+    # 🔥 Debugging: Print the actual data being sent to the frontend
+    print(f"📡 API Response for game {game_id}: {game}")
+
     return jsonify({
         "game_id": game_id,
         "total_rounds": game["total_rounds"],
-        "round_results": game["round_results"],
+        "round_results": game.get("round_results", {}),  # Use .get() to prevent crashes
+        "players": game.get("players", {}),  # ✅ Add this line to include players
         "status": game["status"]
     }), 200
+
 
 
 @game_blueprint.route('/status/<game_id>', methods=['OPTIONS'])
