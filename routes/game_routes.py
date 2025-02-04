@@ -87,7 +87,7 @@ def next_round():
     current_round = game["current_round"]
     total_rounds = game["total_rounds"]
 
-    if current_round >= total_rounds:
+    if current_round > total_rounds:
         # ✅ Game is finished
         game["status"] = "finished"
         update_game_data(game_id, "status", "finished")
