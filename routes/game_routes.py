@@ -169,7 +169,7 @@ def get_game_status(game_id):
 
 @game_blueprint.route('/end_round', methods=['POST'])
 def end_round():
-    """Manually end the current round and calculate the winner."""
+    """Manually end the current round and calculate the winners."""
     data = request.get_json()
     game_id = data.get("game_id")
 
@@ -189,17 +189,23 @@ def end_round():
 
     update_game_data(game_id, "players", game["players"])
 
-    # ✅ FIX: Convert all numbers to integers before calculations
-    numbers = [int(p["number"]) for p in game["players"].values()]
+    # ✅ Convert all numbers to integers before calculations
+    numbers = {pid: int(p["number"]) for pid, p in game["players"].items()}
 
-    # Calculate the average and winner
-    avg_number = sum(numbers) / len(numbers) * 0.8
-    winner = min(game["players"], key=lambda pid: abs(int(game["players"][pid]["number"]) - avg_number))
+    # ✅ Calculate the average and winning number
+    avg_number = sum(numbers.values()) / len(numbers) * 0.8
 
+    # ✅ Find the **smallest** absolute difference
+    min_diff = min(abs(n - avg_number) for n in numbers.values())
+
+    # ✅ Select **all players** who have the closest number
+    winners = [pid for pid, n in numbers.items() if abs(n - avg_number) == min_diff]
+
+    # ✅ Store results for this round
     game["round_results"][f"Round {current_round}"] = {
-        "winner": winner,
+        "winners": winners,  # Multiple winners now supported
         "winning_number": avg_number,
-        "chosen_number": game["players"][winner]["number"]
+        "chosen_numbers": {pid: numbers[pid] for pid in winners}
     }
 
     update_game_data(game_id, "round_results", game["round_results"])
@@ -208,12 +214,12 @@ def end_round():
     if current_round >= game["total_rounds"]:
         game["status"] = "finished"
         update_game_data(game_id, "status", "finished")
-        return jsonify({"message": "Game finished!", "winner": winner}), 200
+        return jsonify({"message": "Game finished!", "winners": winners}), 200
     else:
         game["current_round"] += 1
         update_game_data(game_id, "current_round", game["current_round"])
         update_game_data(game_id, "status", "round_ended")
         return jsonify({
             "message": f"Round {game['current_round']} started",
-            "previous_winner": winner
+            "previous_winners": winners
         }), 200
